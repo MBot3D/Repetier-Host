@@ -107,7 +107,7 @@ namespace RepetierHost.model
                 exclusive = false;
                 return;
             }
-            con.GetInjectLock();
+            con.connector.GetInjectLock();
             if (con.afterJobDisableExtruder)
             {
                 for(int i=0;i<Main.conn.numberExtruder;i++) 
@@ -115,7 +115,7 @@ namespace RepetierHost.model
             }
             if(con.afterJobDisablePrintbed) 
                 con.injectManualCommand("M140 S0");
-            con.ReturnInjectLock();
+            con.connector.ReturnInjectLock();
             if (con.afterJobGoDispose)
                 con.doDispose();
             if(con.afterJobDisableMotors)
@@ -209,7 +209,7 @@ namespace RepetierHost.model
                 StringBuilder s = new StringBuilder();
                 if (hours > 0)
                     s.Append(Trans.T1("L_TIME_H:",hours.ToString())); //"h:");
-                if (min > 0)
+                if (min > 0 || hours > 0)
                     s.Append(Trans.T1("L_TIME_M:",min.ToString()));
                 s.Append(Trans.T1("L_TIME_S",sec.ToString()));
                 //Main.conn.log("Printing time:"+s.ToString(),false,3);
@@ -242,7 +242,7 @@ namespace RepetierHost.model
             StringBuilder s = new StringBuilder();
             if (hours > 0)
                 s.Append(Trans.T1("L_TIME_H:", hours.ToString())); //"h:");
-            if (min > 0)
+            if (min > 0 || hours > 0)
                 s.Append(Trans.T1("L_TIME_M:", min.ToString()));
             s.Append(Trans.T1("L_TIME_S", sec.ToString()));
             return s.ToString();
@@ -275,7 +275,7 @@ namespace RepetierHost.model
                         StringBuilder s = new StringBuilder();
                         if (hours > 0)
                             s.Append(Trans.T1("L_TIME_H:", hours.ToString())); //"h:");
-                        if (min > 0)
+                        if (min > 0 || hours > 0)
                             s.Append(Trans.T1("L_TIME_M:", min.ToString()));
                         s.Append(Trans.T1("L_TIME_S", sec.ToString()));
                         return s.ToString();
@@ -294,5 +294,9 @@ namespace RepetierHost.model
                 }
             }
         }
+        public LinkedList<GCodeCompressed> GetPendingJobCommands()
+        {
+            return new LinkedList<GCodeCompressed>(jobList);
+        } 
     }
 }

@@ -28,7 +28,11 @@ namespace RepetierHost.view
             comboTestCase.SelectedIndex = 0;
             gen = Main.generator;
         }
-
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            e.Cancel = true;
+            this.Hide();
+        }
         private void buttonAbort_Click(object sender, EventArgs e)
         {
             Hide();
@@ -177,7 +181,7 @@ namespace RepetierHost.view
             TextBox box = (TextBox)sender;
             try
             {
-                float.Parse(box.Text);
+                float.Parse(box.Text, NumberStyles.Float, GCode.format);
                 errorProvider.SetError(box, "");
             }
             catch

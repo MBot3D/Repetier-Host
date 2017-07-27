@@ -249,8 +249,8 @@ namespace RepetierHost.view
 
             if (Main.slicer.ActiveSlicer == Slicer.SlicerID.Slic3r)
             {
-                switchSlic3rActive.On = true;
                 switchSkeinforge.On = false;
+                switchSlic3rActive.On = true;
                 //buttonStartSlicing.Text = "Slice with Slic3r\r\n\r\nPrinter = " + b.Slic3rPrinterSettings + "\r\nFilament = " + b.Slic3rFilamentSettings + "\r\nPrint = " + b.Slic3rPrintSettings;
             }
             else if (Main.slicer.ActiveSlicer == Slicer.SlicerID.Skeinforge)
@@ -270,8 +270,8 @@ namespace RepetierHost.view
         {
             if (!updating)
             {
-               // BasicConfiguration.basicConf.Slic3rPrintSettings = (string)comboSlic3rPrintSettings.SelectedItem;
-               // UpdateSelection();
+                if (Main.IsMono && comboSlic3rPrintSettings.SelectedItem != null)
+                    Main.printerModel.Slic3rPrint = (string)comboSlic3rPrintSettings.SelectedItem;
             }
         }
 
@@ -279,8 +279,8 @@ namespace RepetierHost.view
         {
             if (!updating)
             {
-              //  BasicConfiguration.basicConf.Slic3rFilamentSettings = (string)comboSlic3rFilamentSettings.SelectedItem;
-              //  UpdateSelection();
+                if (Main.IsMono && comboSlic3rFilamentSettings.SelectedItem != null)
+                    Main.printerModel.Slic3rFilament1 = (string)comboSlic3rFilamentSettings.SelectedItem;
             }
         }
 
@@ -288,8 +288,8 @@ namespace RepetierHost.view
         {
             if (!updating)
             {
-              //  BasicConfiguration.basicConf.Slic3rPrinterSettings = (string)comboSlic3rPrinterSettings.SelectedItem;
-              //  UpdateSelection();
+                if (Main.IsMono && comboSlic3rPrinterSettings.SelectedItem!=null)
+                    Main.printerModel.Slic3rPrinter = (string)comboSlic3rPrinterSettings.SelectedItem;
             }
         }
 
@@ -319,14 +319,14 @@ namespace RepetierHost.view
 
         private void buttonStartSlicing_Click(object sender, EventArgs e)
         {
-            Main.main.stlComposer1.buttonSlice_Click(null, null);
+            Main.main.objectPlacement.buttonSlice_Click(null, null);
         }
 
         private void comboSkeinProfile_SelectedIndexChanged(object sender, EventArgs e)
         {
             if (updating) return;
-            //BasicConfiguration.basicConf.SkeinforgeProfile = (string)comboSkeinProfile.SelectedItem;
-            //UpdateSelection();
+            if (Main.IsMono && comboSkeinProfile.SelectedItem != null)
+                Main.printerModel.SkeinforgeProfile = (string)comboSkeinProfile.SelectedItem;
         }
 
         private void buttonSetupSlic3r_Click(object sender, EventArgs e)
@@ -351,8 +351,8 @@ namespace RepetierHost.view
         {
             if (!updating)
             {
-              //  BasicConfiguration.basicConf.Slic3rFilament2Settings = (string)comboSlic3rFilamentSettings2.SelectedItem;
-              //  UpdateSelection();
+                if (Main.IsMono && comboSlic3rFilamentSettings2.SelectedItem != null)
+                    Main.printerModel.Slic3rFilament2 = (string)comboSlic3rFilamentSettings2.SelectedItem;
             }
         }
 
@@ -360,8 +360,8 @@ namespace RepetierHost.view
         {
             if (!updating)
             {
-              //  BasicConfiguration.basicConf.Slic3rFilament3Settings = (string)comboSlic3rFilamentSettings3.SelectedItem;
-              //  UpdateSelection();
+                if (Main.IsMono && comboSlic3rFilamentSettings3.SelectedItem != null)
+                    Main.printerModel.Slic3rFilament3 = (string)comboSlic3rFilamentSettings3.SelectedItem;
             }
         }
     }

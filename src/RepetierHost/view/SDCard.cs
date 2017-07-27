@@ -115,7 +115,8 @@ namespace RepetierHost.view
                 Main.conn.eventResponse += f.analyzeEvent;
             }
             f.RefreshFilenames();
-            f.Show();
+            if(!f.Visible)
+                f.Show(Main.main);
             f.BringToFront();
             f.updateButtons();
         }
@@ -154,6 +155,11 @@ namespace RepetierHost.view
             toolUnmount.ToolTipText = Trans.T("L_UNMOUNT_SD_CARD");
             toolNewFolder.ToolTipText = Trans.T("L_NEW_FOLDER");
         }
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            e.Cancel = true;
+            this.Hide();
+        } 
         public void RefreshFilenames()
         {
             updateFilenames = false;
@@ -239,7 +245,7 @@ namespace RepetierHost.view
             }
             else if (uploading && (res.Contains("M999") || res.IndexOf("error writing to file") != -1)) // write error
             {
-                Main.conn.job.KillJob();
+                Main.conn.connector.KillJob();
                 Main.conn.analyzer.uploading = false;
                 uploading = false;
                 toolStatus.Text = Trans.T("L_UPLOAD_FAILED"); // "Upload failed.";
@@ -255,7 +261,7 @@ namespace RepetierHost.view
             }
             else if(res.Contains("Invalid directory")) {
                 if(uploading) {
-                    Main.conn.job.KillJob();
+                    Main.conn.connector.KillJob();
                     Main.conn.analyzer.uploading = false;
                     uploading = false;
                     toolStatus.Text = Trans.T("L_UPLOAD_FAILED"); // "Upload failed.";
@@ -270,7 +276,7 @@ namespace RepetierHost.view
             }
             else if (uploading && res.StartsWith("open failed, File"))
             {
-                Main.conn.job.KillJob();
+                Main.conn.connector.KillJob();
                 Main.conn.analyzer.uploading = false;
                 toolStatus.Text = Trans.T("L_UPLOAD_FAILED"); // "Upload failed.";
             }
@@ -288,7 +294,7 @@ namespace RepetierHost.view
         }
         private void updateButtons()
         {
-            if (!Main.conn.connected)
+            if (!Main.conn.connector.IsConnected())
             {
                 toolAddFile.Enabled = false;
                 toolDelFile.Enabled = false;
@@ -299,7 +305,7 @@ namespace RepetierHost.view
                 toolNewFolder.Enabled = false;
                 return;
             }
-            if (uploading || printing || Main.conn.job.mode==1)
+            if (uploading || printing || Main.conn.connector.IsJobRunning())
             {
                 toolAddFile.Enabled = false;
                 toolDelFile.Enabled = false;
@@ -329,8 +335,8 @@ namespace RepetierHost.view
 
         private void toolAddFile_Click(object sender, EventArgs e)
         {
-            Printjob job = Main.conn.job;
-            if (job.mode==1)
+            Printjob job = Main.conn.connector.Job;
+            if (Main.conn.connector.IsJobRunning())
             {
                 updateButtons();
                 return;
@@ -394,13 +400,13 @@ namespace RepetierHost.view
             if (printing && printWait == 0)
             {
                 printWait = 2;
-                if(!Main.conn.hasInjectedMCommand(27))
+                if(!Main.conn.connector.HasInjectedMCommand(27))
                     Main.conn.injectManualCommand("M27");
             }
             if (printWait <= 0) printWait = 2;
             if (uploading)
             {
-                progress.Value = (int)(Main.conn.job.PercentDone * 2);
+                progress.Value = (int)(Main.conn.connector.Job.PercentDone * 2);
             }
             printWait--;
             if (updateFilenames) RefreshFilenames();
@@ -423,7 +429,7 @@ namespace RepetierHost.view
         private void toolStopPrint_Click(object sender, EventArgs e)
         {
             if(uploading) {
-                Main.conn.job.KillJob();
+                Main.conn.connector.KillJob();
                 Main.conn.analyzer.uploading = false;
                 uploading = false;
                 toolStatus.Text = Trans.T("L_UPLOAD_FAILED"); // "Upload failed.";

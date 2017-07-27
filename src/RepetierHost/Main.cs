@@ -1,4 +1,4 @@
-﻿/*
+/*
    Copyright 2011 repetier repetierdev@gmail.com
 
    Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,9 +26,14 @@ using System.Windows.Forms;
 using RepetierHost.model;
 using RepetierHost.view;
 using RepetierHost.view.utils;
+using RepetierHost.model.geom;
 using Microsoft.Win32;
 using System.Threading;
 using System.Diagnostics;
+using RepetierHost.model;
+using RepetierHost.connector;
+using System.Runtime.InteropServices;
+using RepetierHost.view.calibration;
 
 namespace RepetierHost
 {
@@ -63,7 +68,7 @@ namespace RepetierHost
         public ThreeDView printPreview = null;
         public GCodeVisual jobVisual = new GCodeVisual();
         public GCodeVisual printVisual = null;
-        public STLComposer stlComposer1 = null;
+        public STLComposer objectPlacement = null;
         public volatile GCodeVisual newVisual = null;
         public volatile bool jobPreviewThreadFinished = true;
         public volatile Thread previewThread = null;
@@ -77,6 +82,9 @@ namespace RepetierHost
         public Trans trans = null;
         public RepetierHost.view.RepetierEditor editor;
         public double gcodePrintingTime = 0;
+        public string lastFileLoadedName = null;
+        public double importScaleFactor = 1;
+
         public class JobUpdater
         {
             GCodeVisual visual = null;
@@ -185,9 +193,11 @@ namespace RepetierHost
             conn = new PrinterConnection();
             printerSettings = new FormPrinterSettings();
             printerModel = new PrinterModel();
-            conn.analyzer.start();
+            conn.analyzer.start(true);
             threeDSettings = new ThreeDSettings();
             InitializeComponent();
+            tdSettings.DataSource = threeDSettings;
+            tdSettings_DataMemberChanged(null, null);
             editor = new RepetierEditor();
             editor.Dock = DockStyle.Fill;
             tabGCode.Controls.Add(editor);
@@ -229,12 +239,13 @@ namespace RepetierHost
             }
             slicerToolStripMenuItem.Visible = false;
             splitLog.Panel2Collapsed = !RegMemory.GetBool("logShow", true);
+            splitPrinterId.Panel1Collapsed = !RegMemory.GetBool("printerIdShow", false);
             conn.eventConnectionChange += OnPrinterConnectionChange;
             conn.eventPrinterAction += OnPrinterAction;
             conn.eventJobProgress += OnJobProgress;
-            stlComposer1 = new STLComposer();
-            stlComposer1.Dock = DockStyle.Fill;
-            tabModel.Controls.Add(stlComposer1);
+            objectPlacement = new STLComposer();
+            objectPlacement.Dock = DockStyle.Fill;
+            tabModel.Controls.Add(objectPlacement);
             printPanel = new PrintPanel();
             printPanel.Dock = DockStyle.Fill;
             tabPrint.Controls.Add(printPanel);
@@ -284,7 +295,7 @@ namespace RepetierHost
                 toolStrip.Height = 56;
             }
             new SoundConfig();
-            stlComposer1.buttonSlice.Text = Trans.T1("L_SLICE_WITH", slicer.SlicerName);
+            //stlComposer1.buttonSlice.Text = Trans.T1("L_SLICE_WITH", slicer.SlicerName);
 
             // Customizations
 
@@ -293,10 +304,11 @@ namespace RepetierHost
                 testCaseGeneratorToolStripMenuItem.Visible = false;
             }
             string titleAdd = Custom.GetString("titleAddition", "");
-            if (titleAdd.Length > 0)
+            string titlePrefix = Custom.GetString("titlePrefix", "");
+            if (titleAdd.Length > 0 || titlePrefix.Length>0)
             {
                 int p = basicTitle.IndexOf(' ');
-                basicTitle = basicTitle.Substring(0, p) + titleAdd + basicTitle.Substring(p);
+                basicTitle = titlePrefix+basicTitle.Substring(0, p) + titleAdd + basicTitle.Substring(p);
                 Text = basicTitle;
             }
             slicerPanel.UpdateSelection();
@@ -318,9 +330,45 @@ namespace RepetierHost
             {
                 Main.slicer.ActiveSlicer = Slicer.SlicerID.Slic3r;
             }
-            if(Custom.GetBool("extraSupportButton",false)) {
-                supportToolStripMenuItem.Text = Custom.GetString("extraSupportText","Support");
-            } else supportToolStripMenuItem.Visible = false;
+            if (Custom.GetBool("extraSupportButton", false))
+            {
+                supportToolStripMenuItem.Text = Custom.GetString("extraSupportText", "Support");
+            }
+            else
+            {
+                toolStripAskSeperator.Visible = false;
+                supportToolStripMenuItem.Visible = false;
+            }
+            if (Custom.GetString("extraLink1Title", "").Length>0)
+            {
+                extraUrl1ToolStripMenuItem.Text = Custom.GetString("extraLink1Title", "");
+                toolStripAskSeperator.Visible = true;
+            }
+            else extraUrl1ToolStripMenuItem.Visible = false;
+            if (Custom.GetString("extraLink2Title", "").Length > 0)
+            {
+                extraUrl2ToolStripMenuItem.Text = Custom.GetString("extraLink2Title", "");
+                toolStripAskSeperator.Visible = true;
+            }
+            else extraUrl2ToolStripMenuItem.Visible = false;
+            if (Custom.GetString("extraLink3Title", "").Length > 0)
+            {
+                extraUrl3ToolStripMenuItem.Text = Custom.GetString("extraLink3Title", "");
+                toolStripAskSeperator.Visible = true;
+            }
+            else extraUrl3ToolStripMenuItem.Visible = false;
+            if (Custom.GetString("extraLink4Title", "").Length > 0)
+            {
+                extraUrl4ToolStripMenuItem.Text = Custom.GetString("extraLink4Title", "");
+                toolStripAskSeperator.Visible = true;
+            }
+            else extraUrl4ToolStripMenuItem.Visible = false;
+            if (Custom.GetString("extraLink5Title", "").Length > 0)
+            {
+                extraUrl5ToolStripMenuItem.Text = Custom.GetString("extraLink5Title", "");
+                toolStripAskSeperator.Visible = true;
+            }
+            else extraUrl5ToolStripMenuItem.Visible = false;
             string supportImage = Custom.GetString("extraSupportToolbarImage", "");
             if (supportImage.Length > 0 && File.Exists(Application.StartupPath + Path.DirectorySeparatorChar + supportImage))
             {
@@ -334,10 +382,90 @@ namespace RepetierHost
             toolAction.Text = Trans.T("L_IDLE");
             toolConnection.Text = Trans.T("L_DISCONNECTED");
             updateTravelMoves();
+            printerIdLabel.Text = printerSettings.comboPrinter.Text;
             this.AllowDrop = true;
             this.DragEnter += new DragEventHandler(Form1_DragEnter);
             this.DragDrop += new DragEventHandler(Form1_DragDrop);
+            extensions.ExtensionManager.Initalize();
+            if (conn.connector != null)
+                conn.connector.Activate();
+            //TestTopoTriangle triTests = new TestTopoTriangle();
+            //triTests.RunTests();
+
+            //everything done.  Now look at command line
+            ProcessCommandLine();
+            snapshotToolStripMenuItem.Visible = false;
+            setImportUnits(RegMemory.GetDouble("importScaleFactor", importScaleFactor));
+
         }
+        internal static class NativeMethods
+        {
+            // Import SetThreadExecutionState Win32 API and necessary flags
+            [DllImport("kernel32.dll")]
+            public static extern uint SetThreadExecutionState(uint esFlags);
+            public const uint ES_CONTINUOUS = 0x80000000;
+            public const uint ES_SYSTEM_REQUIRED = 0x00000001;
+        }
+        //private uint previousExecutionState;
+        //private bool currentSleepMode = false;
+        void PreventSleepmode()
+        {
+            try
+            {
+                // if (prevent == currentSleepMode) return;
+                if (Environment.OSVersion.Platform == PlatformID.Win32NT || Environment.OSVersion.Platform == PlatformID.Win32Windows)
+                {
+                    NativeMethods.SetThreadExecutionState(NativeMethods.ES_SYSTEM_REQUIRED);
+                    /*if (prevent)
+                    {
+                        previousExecutionState = NativeMethods.SetThreadExecutionState(
+                        NativeMethods.ES_CONTINUOUS | NativeMethods.ES_SYSTEM_REQUIRED);
+                    }
+                    else
+                    {
+                        NativeMethods.SetThreadExecutionState(0); //NativeMethods.ES_CONTINUOUS);
+                        NativeMethods.SetThreadExecutionState(previousExecutionState);
+                    }*/
+                }
+                // currentSleepMode = prevent;
+            }
+            catch { }
+        }
+        public static bool ApplicationIsActivated()
+        {
+            if (IsMono) return true;
+            var activatedHandle = GetForegroundWindow();
+            if (activatedHandle == IntPtr.Zero)
+                return false;
+
+            var procId = Process.GetCurrentProcess().Id;
+            int activeProcId;
+            GetWindowThreadProcessId(activatedHandle, out activeProcId);
+
+            return activeProcId == procId;
+        }
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, ExactSpelling = true)]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern int GetWindowThreadProcessId(IntPtr handle, out int processId);
+
+        void ProcessCommandLine()
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            if (args.Length < 1) return;
+             
+            //for now, just check the last arg and load it. Could add other inputs/commands later.
+            for (int i = 1; i < args.Length; i++)
+            {
+                string file = args[i];
+                if (File.Exists(file))
+                {
+                    LoadGCodeOrSTL(file);
+                }
+            }
+         }
         void Form1_DragEnter(object sender, DragEventArgs e)
         {
             if (e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effect = DragDropEffects.Copy;
@@ -429,7 +557,7 @@ namespace RepetierHost
             toolStripSDCard.Text = Trans.T("M_SD_CARD");
             toolShowLog.Text = toolShowLog.ToolTipText = Trans.T("M_TOGGLE_LOG");
             toolShowFilament.Text = Trans.T("M_SHOW_FILAMENT");
-            if (conn.connected)
+            if (conn.connector.IsConnected())
             {
                 toolConnect.ToolTipText = Trans.T("L_DISCONNECT_PRINTER"); // "Disconnect printer";
                 toolConnect.Text = Trans.T("M_DISCONNECT"); // "Disconnect";
@@ -449,7 +577,7 @@ namespace RepetierHost
                 toolShowFilament.ToolTipText = Trans.T("L_FILAMENT_VISUALIZATION_ENABLED"); // "Filament visualization enabled";
                 toolShowFilament.Text = Trans.T("M_HIDE_FILAMENT"); // "Hide filament";
             }
-            if (conn.job.mode != 1)
+            if (!conn.connector.IsJobRunning())
             {
                 Main.main.toolRunJob.ToolTipText = Trans.T("M_RUN_JOB"); // "Run job";
                 Main.main.toolRunJob.Text = Trans.T("M_RUN_JOB"); //"Run job";
@@ -463,8 +591,34 @@ namespace RepetierHost
             toolStripSaveJob.ToolTipText = Trans.T("M_SAVE_JOB");
             openGCode.Title = Trans.T("L_IMPORT_G_CODE"); // Import G-Code
             saveJobDialog.Title = Trans.T("L_SAVE_G_CODE"); //Save G-Code
+            isometricToolStripMenuItem.Text = Trans.T("L_ISOMETRIC_VIEW");
+            topViewToolStripMenuItem.Text = Trans.T("L_TOP_VIEW");
+            bottomViewToolStripMenuItem.Text = Trans.T("L_BOTTOM_VIEW");
+            leftViewToolStripMenuItem.Text = Trans.T("L_LEFT_VIEW");
+            rightViewToolStripMenuItem.Text = Trans.T("L_RIGHT_VIEW");
+            frontViewToolStripMenuItem.Text = Trans.T("L_FRONT_VIEW");
+            backViewToolStripMenuItem.Text = Trans.T("L_BACK_VIEW");
+            viewToolStripMenuItem.Text = Trans.T("M_VIEW");
+            showEdgesToolStripMenuItem.Text = Trans.T("M_SHOW_EDGES");
+            showFacesToolStripMenuItem.Text = Trans.T("M_SHOW_FACES");
+            showCompassToolStripMenuItem.Text = Trans.T("L_SHOW_COMPASS");
+            toolsToolStripMenuItem.Text = Trans.T("M_TOOLS");
+            beltCalculatorToolStripMenuItem.Text = Trans.T("M_BELT_CALCULATOR");
+            leadscrewCalculatorToolStripMenuItem.Text = Trans.T("M_LEADSCREW_CALCULATOR");
+            fitPrinterToolStripMenuItem.Text = Trans.T("M_FIT_PRINTER");
+            fitObjectsToolStripMenuItem.Text = Trans.T("M_FIT_OBJECTS");
+            snapshotToolStripMenuItem.Text = Trans.T("M_POSPONED_JOBS");
+            loadStateToolStripMenuItem.Text = Trans.T("M_RESUME_JOB");
+            saveStateToolStripMenuItem.Text = Trans.T("M_POSTPONE_JOB");
+            togglePrinterIdToolStripMenuItem.Text = Trans.T("M_TOGGLE_PRINTER_ID");
             updateTravelMoves();
             updateShowFilament();
+            bedHeightMapToolStripMenuItem.Text = Trans.T("M_MED_HEIGHT_MAP");
+            unitsOfImportedObjectsToolStripMenuItem.Text = Trans.T("UNITS_OF_IMPORTED_OBJECTS");
+            objectsAreInMmToolStripMenuItem.Text = Trans.T("OBJECTS_ARE_IN_MILLIMETER");
+            objectsAreInInchesToolStripMenuItem.Text = Trans.T("OBJECTS_ARE_IN_INCHES");
+            objectsAreInFootToolStripMenuItem.Text = Trans.T("OBJECTS_ARE_IN_FOOT");
+            objectsAreInMeterToolStripMenuItem.Text = Trans.T("OBJECTS_ARE_IN_METER");
             foreach (ToolStripMenuItem item in languageToolStripMenuItem.DropDownItems)
             {
                 item.Checked = item.Tag == trans.active;
@@ -497,7 +651,7 @@ namespace RepetierHost
                 toolConnect.DropDownItems.Add(s, null, ConnectHandler);
             }
             foreach (ToolStripItem it in toolConnect.DropDownItems)
-                it.Enabled = !conn.connected;
+                it.Enabled = !conn.connector.IsConnected();
         }
         public void UpdateHistory()
         {
@@ -566,7 +720,7 @@ namespace RepetierHost
             set { Text = basicTitle + " - " + value; }
             get { return Text; }
         }
-        private void FormToFront(Form f)
+        public void FormToFront(Form f)
         {
             // Make this form the active form and make it TopMost
             //f.ShowInTaskbar = false;
@@ -582,12 +736,14 @@ namespace RepetierHost
         private void OnPrinterConnectionChange(string msg)
         {
             toolConnection.Text = msg;
-            sendScript1ToolStripMenuItem.Enabled = conn.connected;
-            sendScript2ToolStripMenuItem.Enabled = conn.connected;
-            sendScript3ToolStripMenuItem.Enabled = conn.connected;
-            sendScript4ToolStripMenuItem.Enabled = conn.connected;
-            sendScript5ToolStripMenuItem.Enabled = conn.connected;
-            if (conn.connected)
+            bool connected = conn.connector.IsConnected();
+            sendScript1ToolStripMenuItem.Enabled = connected;
+            sendScript2ToolStripMenuItem.Enabled = connected;
+            sendScript3ToolStripMenuItem.Enabled = connected;
+            sendScript4ToolStripMenuItem.Enabled = connected;
+            sendScript5ToolStripMenuItem.Enabled = connected;
+            saveStateToolStripMenuItem.Enabled = connected;
+            if (connected)
             {
                 toolConnect.Image = imageList.Images[0];
                 toolConnect.ToolTipText = Trans.T("L_DISCONNECT_PRINTER"); // "Disconnect printer";
@@ -596,6 +752,8 @@ namespace RepetierHost
                     it.Enabled = false;
                 //eeprom.Enabled = true;
                 toolStripEmergencyButton.Enabled = true;
+                //toolPrinterSettings.Enabled = false;
+                printerSettingsToolStripMenuItem.Enabled = false;
             }
             else
             {
@@ -619,6 +777,8 @@ namespace RepetierHost
                 foreach (ToolStripItem it in toolConnect.DropDownItems)
                     it.Enabled = true;
                 toolStripEmergencyButton.Enabled = false;
+                //toolPrinterSettings.Enabled = true;
+                printerSettingsToolStripMenuItem.Enabled = true;
                 SDCard.Disconnected();
             }
         }
@@ -687,9 +847,11 @@ namespace RepetierHost
             if (!File.Exists(file)) return;
             FileInfo f = new FileInfo(file);
             Title = f.Name;
+            lastFileLoadedName = Path.GetFileNameWithoutExtension(f.Name);
             fileHistory.Save(file);
             UpdateHistory();
-            if (file.ToLower().EndsWith(".stl"))
+            string fileLow = file.ToLower();
+            if (fileLow.EndsWith(".stl") || fileLow.EndsWith(".obj") || fileLow.EndsWith(".3ds"))
             {
               /*  if (MessageBox.Show("Do you want to slice the STL-File? No adds it to the object grid.", "", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
                 {
@@ -698,14 +860,20 @@ namespace RepetierHost
                 else
                 {*/
                     tab.SelectTab(tabModel);
-                    stlComposer1.openAndAddObject(file);
+                    objectPlacement.openAndAddObject(file);
                 //}
             }
             else
             {
-                tab.SelectTab(tabGCode);
-                editor.selectContent(0);
-                editor.setContent(0, System.IO.File.ReadAllText(file));
+                try {
+                    tab.SelectTab(tabGCode);
+                    editor.selectContent(0);
+                    editor.setContent(0, System.IO.File.ReadAllText(file));
+                }
+                catch (System.IO.IOException ex)
+                {
+                    MessageBox.Show("Error encountered while processing file. " + ex.Message);
+                }
             }
         }
         public void LoadGCode(string file)
@@ -746,6 +914,14 @@ namespace RepetierHost
         };
         private void toolPrintJob_Click(object sender, EventArgs e)
         {
+            if (conn.connector.IsJobRunning())
+                conn.connector.PauseJob(Trans.T("L_PAUSE_MSG"));
+            else
+            {
+                Main.main.printVisual.Clear();
+                conn.connector.RunJob();
+            }
+            /*
             Printjob job = conn.job;
             if (job.dataComplete)
             {
@@ -761,20 +937,20 @@ namespace RepetierHost
                 job.PushGCodeShortArray(editor.getContentArray(0));
                 job.PushGCodeShortArray(editor.getContentArray(2));
                 job.EndJob();
-            }
+            }*/
         }
 
 
 
         private void toolKillJob_Click(object sender, EventArgs e)
         {
-            conn.job.KillJob();
+            conn.connector.KillJob();
+            //conn.job.KillJob();
         }
 
         private void printerSettingsToolStripMenuItem_Click(object sender, EventArgs e)
         {
             printerSettings.Show(this);
-            printerSettings.UpdatePorts();
             FormToFront(printerSettings);
         }
 
@@ -794,7 +970,7 @@ namespace RepetierHost
             threeDSettings.Show();
             threeDSettings.BringToFront();
         }
-        private PrinterInfo printerInfo = null;
+        public PrinterInfo printerInfo = null;
         private void printerInformationsToolStripMenuItem_Click(object sender, EventArgs e)
         {
             if (printerInfo == null)
@@ -805,7 +981,7 @@ namespace RepetierHost
 
         private void Main_FormClosing(object sender, FormClosingEventArgs e)
         {
-            if (conn.job.mode==1)
+            if (conn.connector.IsJobRunning())
             {
                 if (MessageBox.Show(Trans.T("L_REALLY_QUIT"), Trans.T("L_SECURITY_QUESTION"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No)
                 {
@@ -818,11 +994,13 @@ namespace RepetierHost
                 e.Cancel = true;
                 return;
             }
+            //PreventSleepmode(false);
             RegMemory.StoreWindowPos("mainWindow", this, true, true);
             RegMemory.SetInt("logSplitterDistance", splitLog.SplitterDistance);
             RegMemory.SetInt("infoEditSplitterDistance", splitInfoEdit.SplitterDistance);
 
             RegMemory.SetBool("logShow", !splitLog.Panel2Collapsed);
+            RegMemory.SetBool("printerIdShow", !splitPrinterId.Panel1Collapsed);
 
             if (previewThread != null)
                 previewThread.Join();
@@ -879,14 +1057,20 @@ namespace RepetierHost
             if (conn.isRepetier)
             {
                 Main.main.continuousMonitoringMenuItem.Enabled = true;
+                Main.main.bedHeightMapToolStripMenuItem.Enabled = true;
+            }
+            else
+            {
+                Main.main.continuousMonitoringMenuItem.Enabled = false;
+                Main.main.bedHeightMapToolStripMenuItem.Enabled = false;
             }
         };
         public MethodInvoker UpdateJobButtons = delegate
         {
-            if (conn.job.mode != 1)
+            if (!conn.connector.IsJobRunning())
             {
                 Main.main.toolKillJob.Enabled = false;
-                Main.main.toolRunJob.Enabled = conn.connected;
+                Main.main.toolRunJob.Enabled = conn.connector.IsConnected();
                 Main.main.toolRunJob.ToolTipText = Trans.T("M_RUN_JOB"); // "Run job";
                 Main.main.toolRunJob.Text = Trans.T("M_RUN_JOB"); //"Run job";
                 Main.main.toolRunJob.Image = Main.main.imageList.Images[2];
@@ -898,12 +1082,11 @@ namespace RepetierHost
                 Main.main.toolRunJob.Image = Main.main.imageList.Images[3];
                 Main.main.toolRunJob.ToolTipText = Trans.T("M_PAUSE_JOB"); //"Pause job";
                 Main.main.toolRunJob.Text = Trans.T("M_PAUSE_JOB"); //"Pause job";
-                Main.main.printVisual.Clear();
             }
         };
         public MethodInvoker UpdateEEPROM = delegate
         {
-            if (conn.isMarlin || conn.isRepetier) // Activate special menus and function
+            if (conn.isMarlin || conn.isRepetier || conn.isSprinter) // Activate special menus and function
             {
                 main.eeprom.Enabled = true;
             }
@@ -975,6 +1158,10 @@ namespace RepetierHost
 
         private void timer_Tick(object sender, EventArgs e)
         {
+            if (conn.connector.IsJobRunning())
+            {
+                PreventSleepmode();
+            }
             if (newVisual != null)
             {
                 jobPreview.models.RemoveLast();
@@ -995,7 +1182,7 @@ namespace RepetierHost
                     StringBuilder s = new StringBuilder();
                     if (hours > 0)
                         s.Append(Trans.T1("L_TIME_H:", hours.ToString())); //"h:");
-                    if (min > 0)
+                    if (min > 0 || hours > 0)
                         s.Append(Trans.T1("L_TIME_M:", min.ToString()));
                     s.Append(Trans.T1("L_TIME_S", sec.ToString()));
                     Main.main.editor.toolPrintingTime.Text = Trans.T1("L_PRINTING_TIME:", s.ToString());
@@ -1031,7 +1218,7 @@ namespace RepetierHost
 
         private void toolConnect_Click(object sender, EventArgs e)
         {
-            if (conn.connected)
+            if (conn.connector.IsConnected())
             {
                 conn.close();
             }
@@ -1103,13 +1290,13 @@ namespace RepetierHost
         private void slic3rToolStripMenuItem_Click(object sender, EventArgs e)
         {
             slicer.ActiveSlicer = Slicer.SlicerID.Slic3r;
-            stlComposer1.buttonSlice.Text = Trans.T1("L_SLICE_WITH", slicer.SlicerName);
+            //stlComposer1.buttonSlice.Text = Trans.T1("L_SLICE_WITH", slicer.SlicerName);
         }
 
         private void skeinforgeToolStripMenuItem1_Click(object sender, EventArgs e)
         {
             slicer.ActiveSlicer = Slicer.SlicerID.Skeinforge;
-            stlComposer1.buttonSlice.Text = Trans.T1("L_SLICE_WITH", slicer.SlicerName);
+            //stlComposer1.buttonSlice.Text = Trans.T1("L_SLICE_WITH", slicer.SlicerName);
         }
 
         private void slic3rConfigurationToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1124,7 +1311,7 @@ namespace RepetierHost
             {
                 case 0:
                 case 1:
-                    threedview.SetView(stlComposer1.cont);
+                    threedview.SetView(objectPlacement.cont);
                     break;
                 case 2:
                     threedview.SetView(jobPreview);
@@ -1144,15 +1331,15 @@ namespace RepetierHost
                 // tabs, so we need to disable all GL windows except the active.
                 if (tab.SelectedTab != tabModel)
                 {
-                    if (tabModel.Controls.Contains(stlComposer1))
+                    if (tabModel.Controls.Contains(objectPlacement))
                     {
-                        tabModel.Controls.Remove(stlComposer1);
+                        tabModel.Controls.Remove(objectPlacement);
                     }
                 }
                 if (tab.SelectedTab == tabModel)
                 {
-                    if (!tabModel.Controls.Contains(stlComposer1))
-                        tabModel.Controls.Add(stlComposer1);
+                    if (!tabModel.Controls.Contains(objectPlacement))
+                        tabModel.Controls.Add(objectPlacement);
                 }
                 refreshCounter = 6;
             }
@@ -1252,21 +1439,29 @@ namespace RepetierHost
 
         private void toolStripEmergencyButton_Click(object sender, EventArgs e)
         {
-            if (!conn.connected) return;
-            conn.injectManualCommandFirst("M112");
-            conn.job.KillJob();
-            conn.serial.DtrEnable = false;
-            //conn.serial.RtsEnable = true;
-            Thread.Sleep(200);
-            //conn.serial.RtsEnable = false;
+            if (!conn.connector.IsConnected()) return;
+            conn.connector.Emergency();
+            //conn.injectManualCommandFirst("M112");
+            /*conn.job.KillJob();
+            conn.close(true);
+            conn.open();
+            return;*/
+            /*RLog.info("Old dtr:" + conn.serial.DtrEnable);
             conn.serial.DtrEnable = true;
-            Thread.Sleep(200);
+            RLog.info("Old dtr:" + conn.serial.DtrEnable);
+            //conn.serial.RtsEnable = true;
+            Thread.Sleep(400);
+            RLog.info("Old dtr:" + conn.serial.DtrEnable);
+            //conn.serial.RtsEnable = false;
             conn.serial.DtrEnable = false;
+            RLog.info("Old dtr:" + conn.serial.DtrEnable);
+            //Thread.Sleep(200);
+            //conn.serial.DtrEnable = false;
             conn.log(Trans.T("L_EMERGENCY_STOP_MSG"), false, 3);
             while (conn.hasInjectedMCommand(112))
             {
                 Application.DoEvents();
-            }
+            }*/
             //conn.close();
         }
 
@@ -1285,7 +1480,7 @@ namespace RepetierHost
         private void externalSlic3rToolStripMenuItem_Click(object sender, EventArgs e)
         {
             slicer.ActiveSlicer = Slicer.SlicerID.Slic3rExternal;
-            stlComposer1.buttonSlice.Text = Trans.T1("L_SLICE_WITH", slicer.SlicerName);
+            //stlComposer1.buttonSlice.Text = Trans.T1("L_SLICE_WITH", slicer.SlicerName);
         }
 
         private void externalSlic3rConfigurationToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1295,7 +1490,7 @@ namespace RepetierHost
 
         private void Main_Activated(object sender, EventArgs e)
         {
-            stlComposer1.recheckChangedFiles();
+            objectPlacement.recheckChangedFiles();
             slicerPanel.UpdateSelection();
         }
         public void selectTimePeriod(object sender, EventArgs e)
@@ -1466,7 +1661,7 @@ namespace RepetierHost
 
         private void toolAction_Click(object sender, EventArgs e)
         {
-            conn.job.etaModeNormal = !conn.job.etaModeNormal;
+            conn.connector.ToggleETAMode();
         }
 
         private void supportToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1474,6 +1669,365 @@ namespace RepetierHost
             openLink(Custom.GetString("extraSupportURL", "http://www.repetier.com"));
         }
 
+        private void isometricToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            threedview.isometricView();
+        }
 
+        private void frontViewToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            threedview.frontView();
+        }
+
+        private void leftViewToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            threedview.leftView();
+        }
+
+        private void rightViewToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            threedview.rightView();
+        }
+
+        private void backViewToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            threedview.backView();
+        }
+
+        private void topViewToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            threedview.topView();
+        }
+
+        private void bottomViewToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            threedview.bottomView();
+        }
+
+        private void tdSettings_DataMemberChanged(object sender, EventArgs e)
+        {
+            showEdgesToolStripMenuItem.Checked = threeDSettings.ShowEdges;
+            showFacesToolStripMenuItem.Checked = threeDSettings.ShowFaces;
+            showCompassToolStripMenuItem.Checked = threeDSettings.ShowCompass;
+        }
+
+        private void showEdgesToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            threeDSettings.ShowEdges = !threeDSettings.ShowEdges;
+        }
+
+        private void showFacesToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            threeDSettings.ShowFaces = !threeDSettings.ShowFaces;
+        }
+
+        public void tdSettings_CurrentChanged(object sender, EventArgs e)
+        {
+            showEdgesToolStripMenuItem.Checked = threeDSettings.ShowEdges;
+            showFacesToolStripMenuItem.Checked = threeDSettings.ShowFaces;
+            showCompassToolStripMenuItem.Checked = threeDSettings.ShowCompass;
+        }
+
+        private void beltCalculatorToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            BeltCalculatorDialog d = new BeltCalculatorDialog();
+            d.Show(this);
+        }
+
+        private void leadscrewCalculatorToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            LeadScrewCalculatorDialog d = new LeadScrewCalculatorDialog();
+            d.Show(this);
+        }
+
+        private void fitPrinterToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            threedview.FitPrinter();
+        }
+
+        private void fitObjectsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            threedview.FitObjects();
+        }
+
+        private void loadStateToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                //ValidatePreconditionsToLoadStateSnapshot(Main.conn);
+
+                PendingPrintJobsDialog dialog = new PendingPrintJobsDialog();
+                dialog.ShowDialog();
+
+                PendingPrintJob job = dialog.GetSelectedJob();
+                if (job == null)
+                {
+                    // User cancelled
+                    return;
+                }
+                PrintingStateSnapshot state = job.GetSnapshot(); //LoadStateFile();
+                lastFileLoadedName = job.Name;
+                this.Title = job.Name;
+
+                GCodeExecutor executor = new PrinterConnectionGCodeExecutor(conn, false);
+                state.RestoreState(executor);
+                Main.main.Invoke(Main.main.UpdateJobButtons);
+            }
+            catch (IOException ex)
+            {
+                MessageBox.Show(ex.ToString(), Trans.T("L_ERROR"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                MessageBox.Show(ex.ToString(), Trans.T("L_ERROR"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private OnPosChange SaveStateOnNewLayerDelegate;
+        private PrinterConnectorBase.OnPauseChanged SaveStateOnPauseDelegate;
+        private SnapshotDialog snapshotDialog;
+        // NOTE: Used an array for the lock object because strings could be
+        // immutable.
+        private string[] lockObject = new string[0];
+        private string snapshotNameOnNextSaveState;
+        private void saveStateToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (!ValidatePreconditionsToSaveStateSnapshot(Main.conn))
+            {
+                // conditions not met
+                return;
+            }
+
+            string snapshotName = ReadSnapshotName();
+            if (snapshotName == null)
+            {
+                // User cancelled
+                return;
+            }
+
+            double lastZ = Main.conn.analyzer.z;
+            lock (lockObject)
+            {
+                // We save the state when the first of these three events happen:
+                // - Print job is paused (if it's paused at the moment the user
+                // tries to take the snapshot, then it's taken at that moment)
+                // - A new layer is reached.
+                // - The user forces the snapshot from the snapshot dialog.
+
+                SaveStateOnNewLayerDelegate = new OnPosChange(delegate(GCode gc, float x, float y, float z)
+                {
+                    if (z != lastZ)
+                    {
+                        // New Layer, ready to save state.
+                        OnReadyToSaveStateCallback();
+                    }
+                });
+
+                SaveStateOnPauseDelegate = new PrinterConnectorBase.OnPauseChanged(delegate(bool paused)
+                {
+                    if (paused)
+                    {
+                        OnReadyToSaveStateCallback();
+                    }
+                });
+
+                snapshotNameOnNextSaveState = snapshotName;
+                Main.conn.analyzer.eventPosChanged += SaveStateOnNewLayerDelegate;
+                Main.conn.connector.eventPauseChanged += SaveStateOnPauseDelegate;
+                if (snapshotDialog == null)
+                {
+                    // FIXME this can lead to a race condition
+                    snapshotDialog = new SnapshotDialog();
+                }
+
+                if (Main.conn.connector.IsPaused)
+                {
+                    // In this case we mustn't wait until the new layer is
+                    // reached, but instead we must take the snapshot now.
+                    OnReadyToSaveStateCallback();
+                }
+            }
+            snapshotDialog.Show();
+        }
+
+
+
+        private bool ValidatePreconditionsToSaveStateSnapshot(PrinterConnection conn)
+        {
+            return conn.connector.IsJobRunning();
+        }
+
+        internal void CancelSaveState()
+        {
+            lock (lockObject)
+            {
+                if (SaveStateOnNewLayerDelegate != null)
+                {
+                    Main.conn.analyzer.eventPosChanged -= SaveStateOnNewLayerDelegate;
+                    Main.conn.connector.eventPauseChanged -= SaveStateOnPauseDelegate;
+                    SaveStateOnNewLayerDelegate = null;
+                    SaveStateOnPauseDelegate = null;
+                    if (snapshotDialog != null)
+                    {
+                        // FIXME this can lead to a race condition
+                        snapshotDialog.Close();
+                        snapshotDialog = null;
+                    }
+                }
+            }
+        }
+
+        public void OnReadyToSaveStateCallback()
+        {
+            string snapshotName;
+            lock (lockObject)
+            {
+                if (SaveStateOnNewLayerDelegate == null)
+                {
+                    // Already cancelled.
+                    return;
+                }
+
+                // keep snapshot name
+                snapshotName = snapshotNameOnNextSaveState;
+
+                // We want the event to execute only once, so, we must remove it
+                // after the condition was met.
+                Main.conn.analyzer.eventPosChanged -= SaveStateOnNewLayerDelegate;
+                Main.conn.connector.eventPauseChanged -= SaveStateOnPauseDelegate;
+                SaveStateOnNewLayerDelegate = null;
+                SaveStateOnPauseDelegate = null;
+                snapshotNameOnNextSaveState = null;
+                if (snapshotDialog != null)
+                {
+                    // FIXME this can lead to a race condition
+                    snapshotDialog.Close();
+                    snapshotDialog = null;
+                }
+            }
+            // Capture state, so that any movement we do later is not affected.
+            PrintingStateSnapshot state = SnapshotFactory.TakeSnapshot(Main.conn);
+
+            // Kill job. This will move the extruder to prevent melting the
+            // object.
+
+            conn.connector.KillJob();
+            try
+            {
+                SaveStateFile(state, snapshotName);
+                MessageBox.Show(Trans.T("L_PRINT_STATE_SAVED_SUCCESSFULLY"));
+            }
+
+            catch (IOException ex)
+            {
+                MessageBox.Show(ex.ToString(), Trans.T("L_ERROR"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+
+            catch (UnauthorizedAccessException ex)
+            {
+                MessageBox.Show(ex.ToString(), Trans.T("L_ERROR"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+
+        private void SaveStateFile(PrintingStateSnapshot state, string snapshotName)
+        {
+            // Check if there's already a file with that name. The file would be overwritten.
+            //bool fileExists = (PendingPrintJobs.GetPendingJobWithName(snapshotName) != null);
+            PendingPrintJobs.Add(state, snapshotName);
+        }
+
+        /// <summary>
+        /// Show the user a dialog requesting a snapshot name.
+        /// If the name is iinvalid, ask him again until he sets a right name.
+        /// If the user cancels, returns null.
+        /// </summary>
+        /// <returns></returns>
+        private static string ReadSnapshotName()
+        {
+            // Propose as snapshot name, one that contains a timestamp.
+            string snapshotName = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
+            do
+            {
+                snapshotName = StringInput.GetString(Trans.T("L_POSTPONED_JOB_NAME"), Trans.T("L_NAME_POSTPONED_JOB"), snapshotName, true);
+                if (snapshotName == null)
+                {
+                    // User cancelled.
+                    return null;
+                }
+            } while (PendingPrintJob.IsInvalidSnapshotName(snapshotName));
+            return snapshotName;
+        }
+
+        private void printerIdLabel_DoubleClick(object sender, EventArgs e)
+        {
+            EditInstanceName.Execute();
+            /*
+            string printerId = StringInput.GetString(Trans.T("L_PRINTER_ID"), Trans.T("L_SET_PRINTER_ID"), printerIdLabel.Text, true);
+            if (printerId != null)
+            {
+                printerIdLabel.Text = printerId;
+                ColorDialog picker = new ColorDialog();
+                picker.Color = printerIdLabel.BackColor;
+                if (picker.ShowDialog() == DialogResult.OK)
+                {
+                    printerIdLabel.BackColor = picker.Color;
+                }
+            }*/
+        }
+        private void togglePrinterIdToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            splitPrinterId.Panel1Collapsed = !splitPrinterId.Panel1Collapsed;
+        }
+        private void extraUrl1ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            openLink(Custom.GetString("extraLink1URL", ""));
+        }
+
+        private void extraUrl2ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            openLink(Custom.GetString("extraLink2URL", ""));
+        }
+
+        private void extraUrl3ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            openLink(Custom.GetString("extraLink3URL", ""));
+        }
+
+        private void extraUrl4ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            openLink(Custom.GetString("extraLink4URL", ""));
+        }
+
+        private void extraUrl5ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            openLink(Custom.GetString("extraLink5URL", ""));
+        }
+
+        private void showCompassToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            threeDSettings.ShowCompass = !threeDSettings.ShowCompass;
+        }
+
+        private void bedHeightMapToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            BedHeightMap.Execute();
+        }
+        public void setImportUnits(double units)
+        {
+            importScaleFactor = units;
+            objectsAreInMmToolStripMenuItem.Checked = units == 1;
+            objectsAreInInchesToolStripMenuItem.Checked = units == 25.4;
+            objectsAreInFootToolStripMenuItem.Checked = units == 304.8;
+            objectsAreInMeterToolStripMenuItem.Checked = units == 1000;
+            RegMemory.SetDouble("importScaleFactor", importScaleFactor);
+
+        }
+        private void objectsAreInMmToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            double units;
+            double.TryParse(((ToolStripMenuItem)sender).Tag.ToString(), System.Globalization.NumberStyles.Float, GCode.format, out units);
+            setImportUnits(units);
+        }
     }
 }

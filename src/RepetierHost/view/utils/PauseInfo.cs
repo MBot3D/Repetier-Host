@@ -14,22 +14,22 @@ namespace RepetierHost.view.utils
     public partial class PauseInfo : Form
     {
         private static PauseInfo form=null;
-        private static float x, y, z,e,f;
-        private static bool relative;
+       // private static float x, y, z,e,f;
+      //  private static bool relative;
         public static void ShowPause(string info) {
             if (form == null)
             {
                 form = new PauseInfo();
             }
             form.labelInfo.Text = info;
-            GCodeAnalyzer a = Main.conn.analyzer;
+            /*GCodeAnalyzer a = Main.conn.analyzer;
             x = a.x-a.xOffset;
             y = a.y-a.yOffset;
             z = a.z-a.zOffset;
             e = a.activeExtruder.e - a.activeExtruder.eOffset;
             f = a.f;
             relative = a.relative;
-
+            */
             if (form.Visible == false)
                 form.Show();
         }
@@ -39,6 +39,11 @@ namespace RepetierHost.view.utils
             translate();
             Main.main.languageChanged += translate;
         }
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            e.Cancel = true;
+            this.Hide();
+        }
         public void translate()
         {
             Text = Trans.T("W_PRINT_PAUSED");
@@ -47,6 +52,13 @@ namespace RepetierHost.view.utils
         }
         private void buttonContinuePrinting_Click(object sender, EventArgs e)
         {
+            ContinueJob();
+        }
+
+        private void ContinueJob()
+        { 
+            Main.conn.connector.ContinueJob();
+            /*
             GCodeAnalyzer a = Main.conn.analyzer;
             PrinterConnection c = Main.conn;
             c.injectManualCommand("G90");
@@ -58,7 +70,7 @@ namespace RepetierHost.view.utils
                 c.injectManualCommand(relative ? "G91" : "G90");
             }
             c.injectManualCommand("G1 F" + f.ToString(GCode.format)); // Reset old speed
-            Main.conn.paused = false;
+            Main.conn.paused = false;*/
             Hide();
         }
     }

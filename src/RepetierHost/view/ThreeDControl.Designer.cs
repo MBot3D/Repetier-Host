@@ -33,30 +33,33 @@
             this.toolStrip1 = new System.Windows.Forms.ToolStrip();
             this.toolRotate = new System.Windows.Forms.ToolStripButton();
             this.toolMoveViewpoint = new System.Windows.Forms.ToolStripButton();
-            this.toolMove = new System.Windows.Forms.ToolStripButton();
             this.toolMoveObject = new System.Windows.Forms.ToolStripButton();
             this.toolZoom = new System.Windows.Forms.ToolStripButton();
+            this.toolIsometric = new System.Windows.Forms.ToolStripButton();
             this.toolResetView = new System.Windows.Forms.ToolStripButton();
             this.toolTopView = new System.Windows.Forms.ToolStripButton();
             this.toolStripSeparator1 = new System.Windows.Forms.ToolStripSeparator();
+            this.toolParallelProjection = new System.Windows.Forms.ToolStripButton();
             this.toolStripClear = new System.Windows.Forms.ToolStripButton();
             this.timer = new System.Windows.Forms.Timer(this.components);
             this.gl = new RepetierHost.view.utils.RHOpenGL();
-            this.toolParallelProjection = new System.Windows.Forms.ToolStripButton();
             this.toolStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
             // toolStrip1
             // 
-            this.toolStrip1.Dock = System.Windows.Forms.DockStyle.Left;
+            this.toolStrip1.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Left)));
+            this.toolStrip1.AutoSize = false;
+            this.toolStrip1.Dock = System.Windows.Forms.DockStyle.None;
             this.toolStrip1.GripStyle = System.Windows.Forms.ToolStripGripStyle.Hidden;
             this.toolStrip1.ImageScalingSize = new System.Drawing.Size(32, 32);
             this.toolStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.toolRotate,
             this.toolMoveViewpoint,
-            this.toolMove,
             this.toolMoveObject,
             this.toolZoom,
+            this.toolIsometric,
             this.toolResetView,
             this.toolTopView,
             this.toolStripSeparator1,
@@ -64,8 +67,12 @@
             this.toolStripClear});
             this.toolStrip1.LayoutStyle = System.Windows.Forms.ToolStripLayoutStyle.VerticalStackWithOverflow;
             this.toolStrip1.Location = new System.Drawing.Point(0, 0);
+            this.toolStrip1.MaximumSize = new System.Drawing.Size(100, 10000);
             this.toolStrip1.Name = "toolStrip1";
-            this.toolStrip1.Size = new System.Drawing.Size(37, 504);
+            this.toolStrip1.Padding = new System.Windows.Forms.Padding(0);
+            this.toolStrip1.RenderMode = System.Windows.Forms.ToolStripRenderMode.Professional;
+            this.toolStrip1.Size = new System.Drawing.Size(36, 504);
+            this.toolStrip1.Stretch = true;
             this.toolStrip1.TabIndex = 0;
             this.toolStrip1.Text = "toolStrip1";
             // 
@@ -77,7 +84,7 @@
             this.toolRotate.Image = ((System.Drawing.Image)(resources.GetObject("toolRotate.Image")));
             this.toolRotate.ImageTransparentColor = System.Drawing.Color.Magenta;
             this.toolRotate.Name = "toolRotate";
-            this.toolRotate.Size = new System.Drawing.Size(34, 36);
+            this.toolRotate.Size = new System.Drawing.Size(35, 36);
             this.toolRotate.Text = "Rotate";
             this.toolRotate.Click += new System.EventHandler(this.toolRotate_Click);
             // 
@@ -90,16 +97,6 @@
             this.toolMoveViewpoint.Size = new System.Drawing.Size(34, 36);
             this.toolMoveViewpoint.Text = "Move viewpoint";
             this.toolMoveViewpoint.Click += new System.EventHandler(this.toolMoveViewpoint_Click);
-            // 
-            // toolMove
-            // 
-            this.toolMove.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-            this.toolMove.Image = ((System.Drawing.Image)(resources.GetObject("toolMove.Image")));
-            this.toolMove.ImageTransparentColor = System.Drawing.Color.Magenta;
-            this.toolMove.Name = "toolMove";
-            this.toolMove.Size = new System.Drawing.Size(34, 36);
-            this.toolMove.Text = "Move camera";
-            this.toolMove.Click += new System.EventHandler(this.toolMove_Click);
             // 
             // toolMoveObject
             // 
@@ -120,6 +117,16 @@
             this.toolZoom.Size = new System.Drawing.Size(34, 36);
             this.toolZoom.Text = "Zoom";
             this.toolZoom.Click += new System.EventHandler(this.toolZoom_Click);
+            // 
+            // toolIsometric
+            // 
+            this.toolIsometric.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.toolIsometric.Image = ((System.Drawing.Image)(resources.GetObject("toolIsometric.Image")));
+            this.toolIsometric.ImageTransparentColor = System.Drawing.Color.Magenta;
+            this.toolIsometric.Name = "toolIsometric";
+            this.toolIsometric.Size = new System.Drawing.Size(34, 36);
+            this.toolIsometric.Text = "toolStripButton1";
+            this.toolIsometric.Click += new System.EventHandler(this.toolIsometric_Click);
             // 
             // toolResetView
             // 
@@ -146,6 +153,17 @@
             this.toolStripSeparator1.Name = "toolStripSeparator1";
             this.toolStripSeparator1.Size = new System.Drawing.Size(34, 6);
             // 
+            // toolParallelProjection
+            // 
+            this.toolParallelProjection.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.toolParallelProjection.Image = ((System.Drawing.Image)(resources.GetObject("toolParallelProjection.Image")));
+            this.toolParallelProjection.ImageTransparentColor = System.Drawing.Color.Magenta;
+            this.toolParallelProjection.Name = "toolParallelProjection";
+            this.toolParallelProjection.Size = new System.Drawing.Size(34, 36);
+            this.toolParallelProjection.Text = "toolStripButton1";
+            this.toolParallelProjection.ToolTipText = "Use parallel projection";
+            this.toolParallelProjection.Click += new System.EventHandler(this.toolParallelProjection_Click);
+            // 
             // toolStripClear
             // 
             this.toolStripClear.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
@@ -163,47 +181,36 @@
             // 
             // gl
             // 
+            this.gl.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
             this.gl.BackColor = System.Drawing.Color.Black;
-            this.gl.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.gl.Location = new System.Drawing.Point(37, 0);
+            this.gl.Location = new System.Drawing.Point(0, 0);
             this.gl.Name = "gl";
-            this.gl.Size = new System.Drawing.Size(793, 504);
+            this.gl.Size = new System.Drawing.Size(830, 504);
             this.gl.TabIndex = 2;
             this.gl.VSync = false;
             this.gl.Paint += new System.Windows.Forms.PaintEventHandler(this.gl_Paint);
-            this.gl.MouseMove += new System.Windows.Forms.MouseEventHandler(this.gl_MouseMove);
-            this.gl.MouseDown += new System.Windows.Forms.MouseEventHandler(this.gl_MouseDown);
-            this.gl.Resize += new System.EventHandler(this.gl_Resize);
-            this.gl.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.ThreeDControl_KeyPress);
-            this.gl.MouseUp += new System.Windows.Forms.MouseEventHandler(this.gl_MouseUp);
-            this.gl.MouseEnter += new System.EventHandler(this.ThreeDControl_MouseEnter);
             this.gl.KeyDown += new System.Windows.Forms.KeyEventHandler(this.ThreeDControl_KeyDown);
-            // 
-            // toolParallelProjection
-            // 
-            this.toolParallelProjection.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-            this.toolParallelProjection.Image = ((System.Drawing.Image)(resources.GetObject("toolParallelProjection.Image")));
-            this.toolParallelProjection.ImageTransparentColor = System.Drawing.Color.Magenta;
-            this.toolParallelProjection.Name = "toolParallelProjection";
-            this.toolParallelProjection.Size = new System.Drawing.Size(34, 36);
-            this.toolParallelProjection.Text = "toolStripButton1";
-            this.toolParallelProjection.ToolTipText = "Use parallel projection";
-            this.toolParallelProjection.Click += new System.EventHandler(this.toolParallelProjection_Click);
+            this.gl.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.ThreeDControl_KeyPress);
+            this.gl.MouseDown += new System.Windows.Forms.MouseEventHandler(this.gl_MouseDown);
+            this.gl.MouseEnter += new System.EventHandler(this.ThreeDControl_MouseEnter);
+            this.gl.MouseMove += new System.Windows.Forms.MouseEventHandler(this.gl_MouseMove);
+            this.gl.Resize += new System.EventHandler(this.gl_Resize);
             // 
             // ThreeDControl
             // 
-            this.Controls.Add(this.gl);
             this.Controls.Add(this.toolStrip1);
+            this.Controls.Add(this.gl);
             this.Name = "ThreeDControl";
             this.Size = new System.Drawing.Size(830, 504);
             this.Load += new System.EventHandler(this.ThreeDControl_Load);
+            this.KeyDown += new System.Windows.Forms.KeyEventHandler(this.ThreeDControl_KeyDown);
             this.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.ThreeDControl_KeyPress);
             this.MouseEnter += new System.EventHandler(this.ThreeDControl_MouseEnter);
-            this.KeyDown += new System.Windows.Forms.KeyEventHandler(this.ThreeDControl_KeyDown);
             this.toolStrip1.ResumeLayout(false);
             this.toolStrip1.PerformLayout();
             this.ResumeLayout(false);
-            this.PerformLayout();
 
         }
 
@@ -211,7 +218,6 @@
 
         private System.Windows.Forms.ToolStrip toolStrip1;
         private System.Windows.Forms.ToolStripButton toolRotate;
-        private System.Windows.Forms.ToolStripButton toolMove;
         private System.Windows.Forms.ToolStripButton toolResetView;
         private System.Windows.Forms.ToolStripButton toolMoveViewpoint;
         private System.Windows.Forms.ToolStripButton toolZoom;
@@ -222,5 +228,6 @@
         public RepetierHost.view.utils.RHOpenGL gl;
         private System.Windows.Forms.ToolStripButton toolTopView;
         public System.Windows.Forms.ToolStripButton toolParallelProjection;
+        private System.Windows.Forms.ToolStripButton toolIsometric;
     }
 }

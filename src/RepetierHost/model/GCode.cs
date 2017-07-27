@@ -61,6 +61,7 @@ namespace RepetierHost.model
     public class GCode
     {
         public static NumberFormatInfo format = CultureInfo.InvariantCulture.NumberFormat;
+        public static string floatNoExp = "0.#####";
         public bool forceAscii = false; // true if unpaseable content is found
         public bool hostCommand = false; // True if it contains a host command to be executed
         private ushort fields = 128;
@@ -258,10 +259,11 @@ namespace RepetierHost.model
         {
             if (hostCommand) return orig;
             StringBuilder s = new StringBuilder();
+            /*
             if (hasM)
             {
                 if (m == 117) inclChecksum = false; // For marlin
-            }
+            }*/
             if (inclLine && hasN)
             {
                 s.Append("N");
@@ -297,42 +299,42 @@ namespace RepetierHost.model
                 if (hasX)
                 {
                     s.Append(" X");
-                    s.Append(x.ToString(format));
+                    s.Append(x.ToString(floatNoExp,format));
                 }
                 if (hasY)
                 {
                     s.Append(" Y");
-                    s.Append(y.ToString(format));
+                    s.Append(y.ToString(floatNoExp,format));
                 }
                 if (hasZ)
                 {
                     s.Append(" Z");
-                    s.Append(z.ToString(format));
+                    s.Append(z.ToString(floatNoExp,format));
                 }
                 if (hasE)
                 {
                     s.Append(" E");
-                    s.Append(e.ToString(format));
+                    s.Append(e.ToString(floatNoExp,format));
                 }
                 if (hasF)
                 {
                     s.Append(" F");
-                    s.Append(f.ToString(format));
+                    s.Append(f.ToString(floatNoExp,format));
                 }
                 if (hasI)
                 {
                     s.Append(" I");
-                    s.Append(ii.ToString(format));
+                    s.Append(ii.ToString(floatNoExp,format));
                 }
                 if (hasJ)
                 {
                     s.Append(" J");
-                    s.Append(j.ToString(format));
+                    s.Append(j.ToString(floatNoExp,format));
                 }
                 if (hasR)
                 {
                     s.Append(" R");
-                    s.Append(r.ToString(format));
+                    s.Append(r.ToString(floatNoExp,format));
                 }
                 if (hasS)
                 {
@@ -441,6 +443,27 @@ namespace RepetierHost.model
             if (p < 0) return "";
             return orig.Substring(p+1);
         }
+        public string Respace(string line)
+        {
+            char last = ' ';
+            StringBuilder b = new StringBuilder();
+            int i, l = line.Length;
+            bool comment = false;
+            for (i = 0; i < l; i++)
+            {
+                char c = line[i];
+                if (c == ';') comment = true;
+                if (char.IsLetter(c) && !comment)
+                {
+                    if (char.IsLower(c))
+                        c = char.ToUpper(c);
+                    //if (last != ' ' ) b.Append(' ');
+                }
+                b.Append(c);
+                last = c;
+            }
+            return b.ToString();
+        }
         public void Parse(String line)
         {
             hostCommand = false;
@@ -449,7 +472,8 @@ namespace RepetierHost.model
             {
                 hostCommand = true;
                 return;
-            }
+            }            
+            //orig = Respace(orig); // destroys M117 and sd card commands
             fields = 128;
             fields2 = 0;
             int l = orig.Length,i;
